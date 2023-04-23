@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.ghostchu</groupId>
         <artifactId>quickshop-hikari</artifactId>
-        <version>4.1.0.3</version>
+        <version>4.2.2.1</version>
     </parent>
 
     <artifactId>quickshop-bukkit</artifactId>
@@ -36,6 +36,12 @@
             <!--            </resource>-->
         </resources>
     </build>
+    <repositories>
+        <repository>
+            <id>minebench-repo</id>
+            <url>https://repo.minebench.de/</url>
+        </repository>
+    </repositories>
     <dependencies>
         <dependency>
             <groupId>org.spigotmc</groupId>
@@ -73,6 +79,12 @@
         </dependency>
         <dependency>
             <groupId>com.ghostchu</groupId>
+            <artifactId>quickshop-platform-spigot-v1_19_R3</artifactId>
+            <version>${parent.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.ghostchu</groupId>
             <artifactId>quickshop-platform-paper</artifactId>
             <version>${parent.version}</version>
             <scope>compile</scope>
@@ -100,7 +112,7 @@
         <dependency>
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>
-            <version>2.11.2</version>
+            <version>2.11.3</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>
@@ -168,7 +180,7 @@
         <dependency>
             <groupId>com.konghq</groupId>
             <artifactId>unirest-java</artifactId>
-            <version>3.14.1</version>
+            <version>3.14.2</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -243,5 +255,6 @@
             <version>1.0.3</version>
             <scope>provided</scope>
         </dependency>
+
     </dependencies>
 </project>

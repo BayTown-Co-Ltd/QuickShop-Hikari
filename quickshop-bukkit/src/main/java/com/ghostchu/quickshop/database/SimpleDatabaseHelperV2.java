@@ -116,7 +116,8 @@ public class SimpleDatabaseHelperV2 implements DatabaseHelper {
             List<Long> shop2ShopMapIds = listAllANotExistsInB(DataTables.SHOPS, "id", DataTables.SHOP_MAP, "shop");
             List<Long> shop2LogPurchaseIds = listAllANotExistsInB(DataTables.SHOPS, "id", DataTables.LOG_PURCHASE, "shop");
             List<Long> shop2LogChangesIds = listAllANotExistsInB(DataTables.SHOPS, "id", DataTables.LOG_CHANGES, "shop");
-            List<Long> shopAllIds = CommonUtil.linkLists(shop2LogChangesIds, shop2LogPurchaseIds);
+            List<Long> shop2Tags = listAllANotExistsInB(DataTables.SHOPS, "id", DataTables.TAGS, "shop");
+            List<Long> shopAllIds = CommonUtil.linkLists(shop2LogChangesIds, shop2LogPurchaseIds, shop2Tags);
             List<Long> shopIsolatedFinal = new ArrayList<>(shop2ShopMapIds);
             shopIsolatedFinal.retainAll(shopAllIds);
             shopIsolatedFinal.forEach(isolatedShopId -> {
@@ -152,7 +153,7 @@ public class SimpleDatabaseHelperV2 implements DatabaseHelper {
                 isolatedIds.add(id);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            plugin.logger().warn("Failed to list all " + aTable.getName() + " not exists in " + bTable.getName() + "!", e);
         }
         return isolatedIds;
     }
@@ -378,9 +379,70 @@ public class SimpleDatabaseHelperV2 implements DatabaseHelper {
                 shopRecords.add(new ShopRecord(dataRecord, infoRecord));
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            plugin.logger().error("Failed to list shops", e);
         }
         return shopRecords;
+    }
+
+    @Override
+    public @NotNull List<Long> listShopsTaggedBy(@NotNull UUID tagger, @NotNull String tag) {
+        List<Long> shopIds = new ArrayList<>();
+        try (SQLQuery query = DataTables.TAGS.createQuery()
+                .addCondition("tagger", tagger.toString())
+                .addCondition("tag", tag)
+                .build().execute()) {
+            ResultSet set = query.getResultSet();
+            shopIds.add(set.getLong("shop"));
+        } catch (SQLException e) {
+            plugin.logger().error("Failed to list shops tagged by " + tagger + " with tag " + tag, e);
+        }
+        return shopIds;
+    }
+
+    @Override
+    public @NotNull List<String> listTags(@NotNull UUID tagger) {
+        List<String> tags = new ArrayList<>();
+        try (SQLQuery query = DataTables.TAGS.createQuery()
+                .addCondition("tagger", tagger.toString())
+                .build().execute()) {
+            ResultSet set = query.getResultSet();
+            tags.add(set.getString("tag"));
+        } catch (SQLException e) {
+            plugin.logger().error("Failed to list tags by " + tagger, e);
+        }
+        return tags;
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Integer> removeShopTag(@NotNull UUID tagger, @NotNull Long shopId, @NotNull String tag) {
+        return DataTables.TAGS.createDelete()
+                .addCondition("tagger", tagger.toString())
+                .addCondition("shop", shopId)
+                .addCondition("tag", tag).build().executeFuture(i -> i);
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Integer> removeShopAllTag(@NotNull UUID tagger, @NotNull Long shopId) {
+        return DataTables.TAGS.createDelete()
+                .addCondition("tagger", tagger.toString())
+                .addCondition("shop", shopId)
+                .build().executeFuture(i -> i);
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Integer> removeTagFromShops(@NotNull UUID tagger, @NotNull String tag) {
+        return DataTables.TAGS.createDelete()
+                .addCondition("tagger", tagger.toString())
+                .addCondition("tag", tag)
+                .build().executeFuture(i -> i);
+    }
+
+    @Override
+    public @NotNull CompletableFuture<@Nullable Integer> tagShop(@NotNull UUID tagger, @NotNull Long shopId, @NotNull String tag) {
+        return DataTables.TAGS.createInsert()
+                .setColumnNames("tagger", "shop", "tag")
+                .setParams(tagger.toString(), shopId, tag)
+                .executeFuture(i -> i);
     }
 
     @Override
@@ -553,7 +615,7 @@ public class SimpleDatabaseHelperV2 implements DatabaseHelper {
                         .build().execute();
                 return linesAffected;
             } catch (SQLException e) {
-                e.printStackTrace();
+                plugin.logger().warn("Failed to purge logs records", e);
                 return -1;
             }
         });

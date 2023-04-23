@@ -2,9 +2,9 @@ package com.ghostchu.quickshop.command.subcommand;
 
 import com.ghostchu.quickshop.QuickShop;
 import com.ghostchu.quickshop.api.command.CommandHandler;
+import com.ghostchu.quickshop.api.command.CommandParser;
 import com.ghostchu.quickshop.api.shop.ShopAction;
 import com.ghostchu.quickshop.shop.SimpleInfo;
-import com.ghostchu.quickshop.util.MsgUtil;
 import com.ghostchu.quickshop.util.Util;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
@@ -26,7 +26,7 @@ public class SubCommand_SuperCreate implements CommandHandler<Player> {
     }
 
     @Override
-    public void onCommand(@NotNull Player sender, @NotNull String commandLabel, @NotNull String[] cmdArg) {
+    public void onCommand(@NotNull Player sender, @NotNull String commandLabel, @NotNull CommandParser parser) {
         ItemStack item = sender.getInventory().getItemInMainHand();
         if (item.getType() == Material.AIR) {
             plugin.text().of(sender, "no-anythings-in-your-hand").send();
@@ -46,7 +46,7 @@ public class SubCommand_SuperCreate implements CommandHandler<Player> {
             final SimpleInfo info = new SimpleInfo(b.getLocation(), ShopAction.CREATE_SELL, sender.getInventory().getItemInMainHand(), b.getRelative(sender.getFacing().getOppositeFace()), true);
 
             plugin.getShopManager().getInteractiveManager().put(sender.getUniqueId(), info);
-            plugin.text().of(sender, "how-much-to-trade-for", MsgUtil.getTranslateText(info.getItem()), plugin.isAllowStack() && plugin.perm().hasPermission(sender, "quickshop.create.stacks") ? item.getAmount() : 1).send();
+            plugin.text().of(sender, "how-much-to-trade-for",Util.getItemStackName(info.getItem()), plugin.isAllowStack() && plugin.perm().hasPermission(sender, "quickshop.create.stacks") ? item.getAmount() : 1).send();
             return;
         }
         plugin.text().of(sender, "not-looking-at-shop").send();
@@ -55,8 +55,8 @@ public class SubCommand_SuperCreate implements CommandHandler<Player> {
     @NotNull
     @Override
     public List<String> onTabComplete(
-            @NotNull Player sender, @NotNull String commandLabel, @NotNull String[] cmdArg) {
-        return cmdArg.length == 1 ? Collections.singletonList(LegacyComponentSerializer.legacySection().serialize(plugin.text().of(sender, "tabcomplete.amount").forLocale())) : Collections.emptyList();
+            @NotNull Player sender, @NotNull String commandLabel, @NotNull CommandParser parser) {
+        return parser.getArgs().size() == 1 ? Collections.singletonList(LegacyComponentSerializer.legacySection().serialize(plugin.text().of(sender, "tabcomplete.amount").forLocale())) : Collections.emptyList();
     }
 
 }

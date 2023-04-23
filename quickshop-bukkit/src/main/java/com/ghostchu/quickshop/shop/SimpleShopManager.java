@@ -9,6 +9,7 @@ import com.ghostchu.quickshop.api.shop.*;
 import com.ghostchu.quickshop.api.shop.permission.BuiltInShopPermission;
 import com.ghostchu.quickshop.common.util.CalculateUtil;
 import com.ghostchu.quickshop.common.util.CommonUtil;
+import com.ghostchu.quickshop.common.util.QuickExecutor;
 import com.ghostchu.quickshop.common.util.RomanNumber;
 import com.ghostchu.quickshop.economy.SimpleBenefit;
 import com.ghostchu.quickshop.economy.SimpleEconomyTransaction;
@@ -30,11 +31,12 @@ import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import io.papermc.lib.PaperLib;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.*;
 import org.bukkit.block.Block;
@@ -187,7 +189,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             space = 10000;
         }
         if (space < amount) {
-            plugin.text().of(buyer, "shop-has-no-space", Component.text(space), MsgUtil.getTranslateText(shop.getItem())).send();
+            plugin.text().of(buyer, "shop-has-no-space", Component.text(space), Util.getItemStackName(shop.getItem())).send();
             return;
         }
         int count = Util.countItems(buyerInventory, shop);
@@ -196,7 +198,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             plugin.text().of(buyer,
                     "you-dont-have-that-many-items",
                     Component.text(count),
-                    MsgUtil.getTranslateText(shop.getItem())).send();
+                    Util.getItemStackName(shop.getItem())).send();
             return;
         }
         if (amount < 1) {
@@ -281,7 +283,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             }
             Component msg = plugin.text().of("player-sold-to-your-store", player != null ? player.getName() : buyer.toString(),
                             amount,
-                            MsgUtil.getTranslateText(shop.getItem())).forLocale(langCode)
+                            Util.getItemStackName(shop.getItem())).forLocale(langCode)
                     .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()));
             if (space == amount) {
                 if (shop.getShopName() == null) {
@@ -292,7 +294,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                             .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()));
                 } else {
                     msg = plugin.text().of("shop-out-of-space-name", shop.getShopName(),
-                                    MsgUtil.getTranslateText(shop.getItem())).forLocale(langCode)
+                                    Util.getItemStackName(shop.getItem())).forLocale(langCode)
                             .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()));
                 }
                 if (sendStockMessageToStaff) {
@@ -416,7 +418,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
         }
         if (stock < amount) {
             plugin.text().of(seller, "shop-stock-too-low", Component.text(stock),
-                    MsgUtil.getTranslateText(shop.getItem())).send();
+                    Util.getItemStackName(shop.getItem())).send();
             return;
         }
         int playerSpace = Util.countSpace(sellerInventory, shop);
@@ -667,7 +669,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                     Component.text((useDecFormat) ? MsgUtil.decimalFormat(priceCheckResult.getMax())
                             : Double.toString(priceCheckResult.getMin()))).send();
             case PRICE_RESTRICTED -> plugin.text().of(p, "restricted-prices",
-                    MsgUtil.getTranslateText(shop.getItem()),
+                    Util.getItemStackName(shop.getItem()),
                     Component.text(priceCheckResult.getMin()),
                     Component.text(priceCheckResult.getMax())).send();
             case NOT_VALID -> plugin.text().of(p, "not-a-number", shop.getPrice()).send();
@@ -718,21 +720,6 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                     plugin.text().of(p, "shops-arent-locked").send();
                 }
 
-                // Figures out which way we should put the sign on and
-                // sets its text.
-                if (shop.isDoubleShop()) {
-                    Shop nextTo = shop.getAttachedShop();
-                    if (Objects.requireNonNull(nextTo).getPrice() > shop.getPrice() && (shop.isBuying() == nextTo.isSelling()) && shop.matches(nextTo.getItem())) { // different type compare
-                        plugin.text().of(p, "buying-more-than-selling").send();
-                    }
-                }
-
-                // If this is one of two double chests, update its partner too
-                if (shop.isRealDouble()) {
-                    shop.getAttachedShop().refresh();
-                }
-                // One last refresh to ensure the item shows up
-                shop.refresh();
                 // Shop info sign check
                 if (signBlock != null && autoSign) {
                     if (signBlock.getType().isAir() || signBlock.getType() == Material.WATER) {
@@ -1198,13 +1185,13 @@ public class SimpleShopManager implements ShopManager, Reloadable {
         if (showTax) {
             chatSheetPrinter.printLine(plugin.text().of(sender, "menu.item-name-and-price-tax",
                     Component.text(amount * shop.getItem().getAmount()),
-                    MsgUtil.getTranslateText(shop.getItem()),
+                    Util.getItemStackName(shop.getItem()),
                     format(total, shop),
                     tax).forLocale());
         } else {
             chatSheetPrinter.printLine(plugin.text().of(sender, "menu.item-name-and-price",
                     Component.text(amount * shop.getItem().getAmount()),
-                    MsgUtil.getTranslateText(shop.getItem()),
+                    Util.getItemStackName(shop.getItem()),
                     format(total, shop)).forLocale());
         }
         MsgUtil.printEnchantment(sender, shop, chatSheetPrinter);
@@ -1231,7 +1218,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                 plugin.text().of(sender,
                         "menu.item-name-and-price",
                         amount,
-                        MsgUtil.getTranslateText(shop.getItem()),
+                        Util.getItemStackName(shop.getItem()),
                         format(total, shop)).forLocale());
         if (showTax) {
             if (tax != 0) {
@@ -1259,6 +1246,10 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                 && !plugin.perm().hasPermission(p, "quickshop.other.use")) {
             return;
         }
+        if(Util.fireCancellableEvent(new ShopInfoPanelEvent(shop, p.getUniqueId()))){
+            Log.debug("ShopInfoPanelEvent cancelled by some plugin");
+            return;
+        }
         ProxiedLocale locale = plugin.text().findRelativeLanguages(p.getLocale());
         // Potentially faster with an array?
         ItemStack items = shop.getItem();
@@ -1269,14 +1260,14 @@ public class SimpleShopManager implements ShopManager, Reloadable {
         // Enabled
         if (shop.playerAuthorize(p.getUniqueId(), BuiltInShopPermission.PREVIEW_SHOP)
                 || plugin.perm().hasPermission(p, "quickshop.other.preview")) {
-            chatSheetPrinter.printLine(plugin.text().of(p, "menu.item", MsgUtil.getTranslateText(shop.getItem())).forLocale()
+            chatSheetPrinter.printLine(plugin.text().of(p, "menu.item", Util.getItemStackName(shop.getItem())).forLocale()
                     .append(Component.text("   "))
                     .append(plugin.text().of(p, "menu.preview", Component.text(shop.getItem().getAmount())).forLocale())
                     .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()))
                     .clickEvent(ClickEvent.clickEvent(ClickEvent.Action.RUN_COMMAND, MsgUtil.fillArgs("/qs silentpreview {0}", shop.getRuntimeRandomUniqueId().toString())))
             );
         } else {
-            chatSheetPrinter.printLine(plugin.text().of(p, "menu.item", MsgUtil.getTranslateText(shop.getItem())).forLocale()
+            chatSheetPrinter.printLine(plugin.text().of(p, "menu.item", Util.getItemStackName(shop.getItem())).forLocale()
                     .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()))
             );
         }
@@ -1304,9 +1295,9 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             }
         }
         if (shop.getItem().getAmount() == 1) {
-            chatSheetPrinter.printLine(plugin.text().of(p, "menu.price-per", MsgUtil.getTranslateText(shop.getItem()), format(shop.getPrice(), shop)).forLocale());
+            chatSheetPrinter.printLine(plugin.text().of(p, "menu.price-per", Util.getItemStackName(shop.getItem()), format(shop.getPrice(), shop)).forLocale());
         } else {
-            chatSheetPrinter.printLine(plugin.text().of(p, "menu.price-per-stack", MsgUtil.getTranslateText(shop.getItem()), format(shop.getPrice(), shop), shop.getItem().getAmount()).forLocale());
+            chatSheetPrinter.printLine(plugin.text().of(p, "menu.price-per-stack", Util.getItemStackName(shop.getItem()), format(shop.getPrice(), shop), shop.getItem().getAmount()).forLocale());
         }
         if (shop.isBuying()) {
             chatSheetPrinter.printLine(plugin.text().of(p, "menu.this-shop-is-buying").forLocale());
@@ -1318,24 +1309,38 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             PotionData potionData = potionMeta.getBasePotionData();
             PotionEffectType potionEffectType = potionData.getType().getEffectType();
             if (potionEffectType != null) {
+                Component translation;
+                try {
+                    translation = plugin.getPlatform().getTranslation(potionEffectType);
+                } catch (Throwable th) {
+                    translation = MsgUtil.setHandleFailedHover(p, Component.text(potionEffectType.getName()));
+                    plugin.logger().warn("Failed to handle translation for PotionEffect {}", potionEffectType.getKey(), th);
+                }
                 chatSheetPrinter.printLine(plugin.text().of(p, "menu.effects").forLocale());
                 //Because the bukkit API limit, we can't get the actual effect level
                 chatSheetPrinter.printLine(Component.empty()
                         .color(NamedTextColor.YELLOW)
-                        .append(plugin.getPlatform().getTranslation(potionEffectType))
+                        .append(translation)
                 );
             }
             if (potionMeta.hasCustomEffects()) {
                 for (PotionEffect potionEffect : potionMeta.getCustomEffects()) {
                     int level = potionEffect.getAmplifier();
+                    Component translation;
+                    try {
+                        translation = plugin.getPlatform().getTranslation(potionEffect.getType());
+                    } catch (Throwable th) {
+                        translation = MsgUtil.setHandleFailedHover(p, Component.text(potionEffect.getType().getName()));
+                        plugin.logger().warn("Failed to handle translation for PotionEffect {}", potionEffect.getType().getKey(), th);
+                    }
                     chatSheetPrinter.printLine(Component.empty()
                             .color(NamedTextColor.YELLOW)
-                            .append(plugin.getPlatform().getTranslation(potionEffect.getType())).append(LegacyComponentSerializer.legacySection().deserialize(" " + (level <= 10 ? RomanNumber.toRoman(level) : level))));
+                            .append(translation).append(Component.text(" " + (level <= 10 ? RomanNumber.toRoman(level) : level))));
                 }
             }
         }
         chatSheetPrinter.printFooter();
-        new ShopInfoPanelEvent(shop, p.getUniqueId()).callEvent();
+
     }
 
     @Override
@@ -1369,7 +1374,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                 msg = plugin.text().of("player-bought-from-your-store-tax",
                                 player != null ? player.getName() : seller.toString(),
                                 amount * shop.getItem().getAmount(),
-                                MsgUtil.getTranslateText(shop.getItem()),
+                                Util.getItemStackName(shop.getItem()),
                                 this.formatter.format(total - tax, shop),
                                 this.formatter.format(tax, shop)).forLocale(langCode)
                         .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()));
@@ -1377,7 +1382,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                 msg = plugin.text().of("player-bought-from-your-store",
                                 player != null ? player.getName() : seller.toString(),
                                 amount * shop.getItem().getAmount(),
-                                MsgUtil.getTranslateText(shop.getItem()),
+                                Util.getItemStackName(shop.getItem()),
                                 this.formatter.format(total - tax, shop)).forLocale(langCode)
                         .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()));
             }
@@ -1396,11 +1401,11 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                                     shop.getLocation().getBlockX(),
                                     shop.getLocation().getBlockY(),
                                     shop.getLocation().getBlockZ(),
-                                    MsgUtil.getTranslateText(shop.getItem())).forLocale(langCode)
+                                    Util.getItemStackName(shop.getItem())).forLocale(langCode)
                             .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()));
                 } else {
                     msg = plugin.text().of("shop-out-of-stock-name", shop.getShopName(),
-                                    MsgUtil.getTranslateText(shop.getItem())).forLocale(langCode)
+                                    Util.getItemStackName(shop.getItem())).forLocale(langCode)
                             .hoverEvent(plugin.getPlatform().getItemStackHoverEvent(shop.getItem()));
                 }
                 if (sendStockMessageToStaff) {
@@ -1468,7 +1473,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             if (shopHaveSpaces == 0) {
                 // when typed 'all' but the shop doesn't have any empty space
                 plugin.text().of(p, "shop-has-no-space", Component.text(shopHaveSpaces),
-                        MsgUtil.getTranslateText(shop.getItem())).send();
+                        Util.getItemStackName(shop.getItem())).send();
                 return 0;
             }
             if (ownerCanAfford == 0 && (!shop.isUnlimited() || payUnlimitedShopOwner)) {
@@ -1484,7 +1489,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             // when typed 'all' but player doesn't have any items to sell
             plugin.text().of(p, "you-dont-have-that-many-items",
                     Component.text(amount),
-                    MsgUtil.getTranslateText(shop.getItem())).send();
+                    Util.getItemStackName(shop.getItem())).send();
             return 0;
         }
         return amount;
@@ -1589,6 +1594,50 @@ public class SimpleShopManager implements ShopManager, Reloadable {
         }
     }
 
+    @NotNull
+    @Override
+    public CompletableFuture<@NotNull List<Shop>> queryTaggedShops(@NotNull UUID tagger, @NotNull String tag) {
+        Util.ensureThread(true);
+        return CompletableFuture.supplyAsync(() -> plugin.getDatabaseHelper().listShopsTaggedBy(tagger, tag)
+                        .stream()
+                        .map(this::getShop).toList()
+                , QuickExecutor.getDatabaseExecutor());
+
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Integer> clearShopTags(@NotNull UUID tagger, @NotNull Shop shop) {
+        return plugin.getDatabaseHelper().removeShopAllTag(tagger, shop.getShopId());
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Integer> clearTagFromShops(@NotNull UUID tagger, @NotNull String tag) {
+        tag = tag.trim().toLowerCase(Locale.ROOT);
+        tag = tag.replace(" ", "_");
+        return plugin.getDatabaseHelper().removeTagFromShops(tagger, tag);
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Integer> removeTag(@NotNull UUID tagger, @NotNull Shop shop, @NotNull String tag) {
+        tag = tag.trim().toLowerCase(Locale.ROOT);
+        tag = tag.replace(" ", "_");
+        return plugin.getDatabaseHelper().removeShopTag(tagger, shop.getShopId(), tag);
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Integer> tagShop(@NotNull UUID tagger, @NotNull Shop shop, @NotNull String tag) {
+        tag = tag.trim().toLowerCase(Locale.ROOT);
+        tag = tag.replace(" ", "_");
+        return plugin.getDatabaseHelper().tagShop(tagger, shop.getShopId(), tag);
+    }
+
+    @Override
+    @NotNull
+    public List<String> listTags(@NotNull UUID tagger) {
+        Util.ensureThread(true);
+        return plugin.getDatabaseHelper().listTags(tagger);
+    }
+
     private void processCreationFail(@NotNull Shop shop, @NotNull UUID owner, @NotNull Throwable e2) {
         plugin.logger().error("Shop create failed, auto fix failed, the changes may won't commit to database.", e2);
         Player player = Bukkit.getPlayer(owner);
@@ -1630,7 +1679,7 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                 // but also the shop's stock is 0
                 plugin.text().of(p, "shop-stock-too-low",
                         Component.text(shop.getRemainingStock()),
-                        MsgUtil.getTranslateText(shop.getItem())).send();
+                        Util.getItemStackName(shop.getItem())).send();
                 return 0;
             } else {
                 // when if player's inventory is full
@@ -1687,7 +1736,9 @@ public class SimpleShopManager implements ShopManager, Reloadable {
             this.actions.keySet().forEach(uuid -> {
                 Player player = Bukkit.getPlayer(uuid);
                 if (player != null) {
-                    plugin.getBungeeListener().notifyForCancel(player);
+                    if(plugin.getBungeeListener() != null) {
+                        plugin.getBungeeListener().notifyForCancel(player);
+                    }
                 }
             });
             this.actions.clear();
@@ -1780,6 +1831,59 @@ public class SimpleShopManager implements ShopManager, Reloadable {
                 return this.next(); // Skip to the next one (Empty iterator?)
             }
             return shops.next();
+        }
+    }
+
+    static class TagParser {
+        private final List<String> tags;
+        private final ShopManager shopManager;
+        private final UUID tagger;
+        private final Map<String, List<Shop>> singleCaching = new HashMap<>();
+
+        public TagParser(UUID tagger, ShopManager shopManager, List<String> tags) {
+            Util.ensureThread(true);
+            this.shopManager = shopManager;
+            this.tags = tags;
+            this.tagger = tagger;
+        }
+        
+        public List<Shop> parseTags(){
+            List<Shop> finalShop = new ArrayList<>();
+            for (String tag : tags) {
+               ParseResult result =  parseSingleTag(tag);
+               if(result.getBehavior() == Behavior.INCLUDE){
+                   finalShop.addAll(result.getShops());
+               }else if (result.getBehavior() == Behavior.EXCLUDE){
+                     finalShop.removeAll(result.getShops());
+               }
+            }
+            return finalShop;
+        }
+
+        public ParseResult parseSingleTag(String tag) throws IllegalArgumentException {
+            Util.ensureThread(true);
+            Behavior behavior = Behavior.INCLUDE;
+            if (tag.startsWith("-")) {
+                behavior = Behavior.EXCLUDE;
+            }
+            String tagName = tag.substring(1);
+            if (tagName.isEmpty()) {
+                throw new IllegalArgumentException("Tag name can't be empty");
+            }
+            List<Shop> shops = singleCaching.computeIfAbsent(tag, (t)->shopManager.queryTaggedShops(tagger, t).join());
+            return new ParseResult(behavior, shops);
+        }
+
+        @AllArgsConstructor
+        @Data
+        static class ParseResult {
+            private final Behavior behavior;
+            private final List<Shop> shops;
+        }
+
+        enum Behavior {
+            INCLUDE,
+            EXCLUDE
         }
     }
 }

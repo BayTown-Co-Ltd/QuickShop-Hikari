@@ -15,7 +15,6 @@ import io.papermc.lib.PaperLib;
 import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -37,12 +36,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredListener;
-import org.bukkit.potion.PotionData;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -328,12 +323,8 @@ public class Util {
                     config = yaml.dump(root);
                     Log.debug("Updated, we will try load as hacked ItemStack: " + config);
                 } else {
-                    plugin.logger()
-                            .warn(
-                                    "Cannot load ItemStack {} because it saved from higher Minecraft server version, the action will fail and you will receive a exception, PLEASE DON'T REPORT TO QUICKSHOP!", config);
-                    plugin.logger()
-                            .warn(
-                                    "You can try force load this ItemStack by our hacked ItemStack read util (shop.force-load-downgrade-items), but beware, the data may corrupt if you load on this lower Minecraft server version, Please backup your world and database before enable!");
+                    plugin.logger().warn("Cannot load ItemStack {} because it saved from higher Minecraft server version, the action will fail and you will receive a exception, PLEASE DON'T REPORT TO QUICKSHOP!", config);
+                    plugin.logger().warn("You can try force load this ItemStack by our hacked ItemStack read util (shop.force-load-downgrade-items), but beware, the data may corrupt if you load on this lower Minecraft server version, Please backup your world and database before enable!");
                 }
             }
             yamlConfiguration.loadFromString(config);
@@ -369,9 +360,7 @@ public class Util {
      * @return Equals or not.
      */
     private static boolean equalsBlockStateLocation(@NotNull Location b1, @NotNull Location b2) {
-        return (b1.getBlockX() == b2.getBlockX())
-                && (b1.getBlockY() == b2.getBlockY())
-                && (b1.getBlockZ() == b2.getBlockZ());
+        return (b1.getBlockX() == b2.getBlockX()) && (b1.getBlockY() == b2.getBlockY()) && (b1.getBlockZ() == b2.getBlockZ());
     }
 
     /**
@@ -448,7 +437,15 @@ public class Util {
     @NotNull
     public static Component getItemStackName(@NotNull ItemStack itemStack) {
         Component result = getItemCustomName(itemStack);
-        return isEmptyComponent(result) ? plugin.getPlatform().getTranslation(itemStack.getType()) : result;
+        if (isEmptyComponent(result)) {
+            try {
+                result = plugin.getPlatform().getTranslation(itemStack);
+            } catch (Throwable th) {
+                result = MsgUtil.setHandleFailedHover(null, Component.text(itemStack.getType().getKey().toString()));
+                plugin.logger().warn("Failed to handle translation for ItemStack {}", Util.serialize(itemStack), th);
+            }
+        }
+        return result;
     }
 
     @Nullable
@@ -459,26 +456,24 @@ public class Util {
                 return getFirstEnchantmentName(enchantmentStorageMeta);
             }
         }
-        if (plugin.getConfig().getBoolean("shop.use-effect-for-potion-item") && itemStack.getType().name().endsWith("POTION")) {
-            ItemMeta meta = itemStack.getItemMeta();
-            if (meta instanceof PotionMeta potionMeta) {
-                PotionData potionData = potionMeta.getBasePotionData();
-                PotionEffectType potionEffectType = potionData.getType().getEffectType();
-                if (potionEffectType != null) {
-                    //Because the bukkit API limit, we can't get the actual effect level
-                    return plugin.getPlatform().getTranslation(potionEffectType);
-                } else if (potionMeta.hasCustomEffects()) {
-                    PotionEffect potionEffect = potionMeta.getCustomEffects().get(0);
-                    if (potionEffect != null) {
-                        int level = potionEffect.getAmplifier();
-                        return plugin.getPlatform().getTranslation(potionEffect.getType()).append(LegacyComponentSerializer.legacySection().deserialize(" " + (level <= 10 ? RomanNumber.toRoman(potionEffect.getAmplifier()) : level)));
-                    }
-                }
-            }
-        }
-        if (itemStack.hasItemMeta()
-                && Objects.requireNonNull(itemStack.getItemMeta()).hasDisplayName()
-                && !QuickShop.getInstance().getConfig().getBoolean("shop.force-use-item-original-name")) {
+//        if (plugin.getConfig().getBoolean("shop.use-effect-for-potion-item") && itemStack.getType().name().endsWith("POTION")) {
+//            ItemMeta meta = itemStack.getItemMeta();
+//            if (meta instanceof PotionMeta potionMeta) {
+//                PotionData potionData = potionMeta.getBasePotionData();
+//                PotionEffectType potionEffectType = potionData.getType().getEffectType();
+//                if (potionEffectType != null) {
+//                    //Because the bukkit API limit, we can't get the actual effect level
+//                    return plugin.getPlatform().getTranslation(potionEffectType);
+//                } else if (potionMeta.hasCustomEffects()) {
+//                    PotionEffect potionEffect = potionMeta.getCustomEffects().get(0);
+//                    if (potionEffect != null) {
+//                        int level = potionEffect.getAmplifier();
+//                        return plugin.getPlatform().getTranslation(potionEffect.getType()).append(LegacyComponentSerializer.legacySection().deserialize(" " + (level <= 10 ? RomanNumber.toRoman(potionEffect.getAmplifier()) : level)));
+//                    }
+//                }
+//            }
+//        }
+        if (itemStack.hasItemMeta() && Objects.requireNonNull(itemStack.getItemMeta()).hasDisplayName() && !QuickShop.getInstance().getConfig().getBoolean("shop.force-use-item-original-name")) {
             return plugin.getPlatform().getDisplayName(itemStack.getItemMeta());
         }
         return null;
@@ -504,11 +499,17 @@ public class Util {
             throw new IllegalArgumentException("Item does not have an enchantment!");
         }
         Entry<Enchantment, Integer> entry = meta.getStoredEnchants().entrySet().iterator().next();
-        Component name = plugin.getPlatform().getTranslation(entry.getKey());
+        Component name;
+        try {
+            name = plugin.getPlatform().getTranslation(entry.getKey());
+        } catch (Throwable throwable) {
+            name = MsgUtil.setHandleFailedHover(null, Component.text(entry.getKey().getKey().getKey()));
+            plugin.logger().warn("Failed to handle translation for Enchantment {}", entry.getKey().getKey(), throwable);
+        }
         if (entry.getValue() == 1 && entry.getKey().getMaxLevel() == 1) {
             return name;
         } else {
-            return name.append(LegacyComponentSerializer.legacySection().deserialize(" " + RomanNumber.toRoman(entry.getValue())));
+            return name.append(Component.text(" " + RomanNumber.toRoman(entry.getValue())));
         }
     }
 
@@ -676,9 +677,10 @@ public class Util {
     public static void initialize() {
         plugin = QuickShop.getInstance();
         try {
+            plugin.getReloadManager().unregister(Util.class.getDeclaredMethod("initialize"));
             plugin.getReloadManager().register(Util.class.getDeclaredMethod("initialize"));
         } catch (NoSuchMethodException e) {
-            e.printStackTrace();
+            plugin.logger().error("Failed to register Util initialize method to reload manager.", e);
         }
         SHOPABLES.clear();
         CUSTOM_STACKSIZE.clear();

@@ -13,8 +13,6 @@ import com.ghostchu.simplereloadlib.ReloadStatus;
 import com.ghostchu.simplereloadlib.Reloadable;
 import com.google.common.collect.Lists;
 import com.google.gson.JsonSyntaxException;
-import lombok.Getter;
-import lombok.Setter;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
@@ -31,9 +29,6 @@ import org.jetbrains.annotations.Nullable;
 public abstract class AbstractDisplayItem implements Reloadable {
 
     protected static final QuickShop PLUGIN = QuickShop.getInstance();
-    @Setter
-    @Getter
-    private static volatile boolean isNotSupportVirtualItem = false;
     protected final ItemStack originalItemStack;
     protected final Shop shop;
     @Nullable
@@ -54,15 +49,7 @@ public abstract class AbstractDisplayItem implements Reloadable {
      */
     @NotNull
     public static DisplayType getNowUsing() {
-        DisplayType displayType = DisplayType.fromID(PLUGIN.getConfig().getInt("shop.display-type"));
-        //Falling back to RealDisplayItem when VirtualDisplayItem is unsupported
-        if (isNotSupportVirtualItem && displayType == DisplayType.VIRTUALITEM) {
-            PLUGIN.getConfig().set("shop.display-type", 0);
-            PLUGIN.getJavaPlugin().saveConfig();
-            PLUGIN.logger().warn("Falling back to RealDisplayItem because {} type is unsupported.", displayType.name());
-            return DisplayType.REALITEM;
-        }
-        return displayType;
+        return DisplayType.fromID(PLUGIN.getConfig().getInt("shop.display-type"));
     }
 
     /**
@@ -148,10 +135,6 @@ public abstract class AbstractDisplayItem implements Reloadable {
         }
         String defaultMark = ShopProtectionFlag.getDefaultMark();
         String shopLocation = shop.getLocation().toString();
-        String attachedShopLocation = "null";
-        if (shop.isRealDouble()) {
-            attachedShopLocation = shop.getAttachedShop().getLocation().toString();
-        }
         for (String lore : iMeta.getLore()) {
             try {
                 if (!MsgUtil.isJson(lore)) {
@@ -164,8 +147,7 @@ public abstract class AbstractDisplayItem implements Reloadable {
                 if (!ShopProtectionFlag.getMark().equals(defaultMark)) {
                     continue;
                 }
-                if (shopProtectionFlag.getShopLocation().equals(shopLocation)
-                        || shopProtectionFlag.getShopLocation().equals(attachedShopLocation)) {
+                if (shopProtectionFlag.getShopLocation().equals(shopLocation)) {
                     return true;
                 }
             } catch (JsonSyntaxException e) {
@@ -264,18 +246,7 @@ public abstract class AbstractDisplayItem implements Reloadable {
      * @return The Location that the item *should* be displaying at.
      */
     public @Nullable Location getDisplayLocation() {
-        //TODO: Rewrite centering item feature, currently implement is buggy and mess
         Util.ensureThread(false);
-        if (shop.isRealDouble()) {
-            if (shop.isLeftShop()) {
-                // Shop is left shop, so location is null.
-                return null;
-            }
-            double avgX = (shop.getLocation().getX() + shop.getAttachedShop().getLocation().getX()) / 2;
-            double avgZ = (shop.getLocation().getZ() + shop.getAttachedShop().getLocation().getZ()) / 2;
-            Location newloc = new Location(shop.getLocation().getWorld(), avgX, shop.getLocation().getY(), avgZ, shop.getLocation().getYaw(), shop.getLocation().getPitch());
-            return newloc.add(0.5, 1.2, 0.5);
-        }
         return this.shop.getLocation().clone().add(0.5, 1.2, 0.5);
     }
 
@@ -348,4 +319,13 @@ public abstract class AbstractDisplayItem implements Reloadable {
      */
     public abstract void spawn();
 
+    /**
+     * Gets the shop that display holding
+     *
+     * @return The shop that display holding
+     */
+    @NotNull
+    public Shop getShop() {
+        return shop;
+    }
 }

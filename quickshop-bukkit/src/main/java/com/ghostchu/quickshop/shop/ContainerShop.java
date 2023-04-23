@@ -22,7 +22,6 @@ import com.ghostchu.quickshop.economy.SimpleEconomyTransaction;
 import com.ghostchu.quickshop.shop.datatype.ShopSignPersistentDataType;
 import com.ghostchu.quickshop.shop.display.AbstractDisplayItem;
 import com.ghostchu.quickshop.shop.display.RealDisplayItem;
-import com.ghostchu.quickshop.shop.display.VirtualDisplayItem;
 import com.ghostchu.quickshop.util.MsgUtil;
 import com.ghostchu.quickshop.util.Util;
 import com.ghostchu.quickshop.util.logger.Log;
@@ -41,7 +40,6 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Sign;
-import org.bukkit.block.data.type.Chest;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
@@ -53,7 +51,6 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -97,15 +94,9 @@ public class ContainerShop implements Shop, Reloadable {
     @EqualsAndHashCode.Exclude
     private volatile boolean isDeleted = false;
     @EqualsAndHashCode.Exclude
-    private volatile boolean isLeftShop = false;
-    @EqualsAndHashCode.Exclude
     private volatile boolean createBackup = false;
     @EqualsAndHashCode.Exclude
     private InventoryPreview inventoryPreview = null;
-    @EqualsAndHashCode.Exclude
-    private WeakReference<ContainerShop> attachedShopReference;
-    @EqualsAndHashCode.Exclude
-    private boolean isDisplayItemChanged = false;
     @EqualsAndHashCode.Exclude
     private boolean dirty;
     @EqualsAndHashCode.Exclude
@@ -126,54 +117,34 @@ public class ContainerShop implements Shop, Reloadable {
     @NotNull
     private Benefit benefit;
 
-    ContainerShop(@NotNull ContainerShop s) {
-        Util.ensureThread(false);
-        this.shopId = s.shopId;
-        this.shopType = s.shopType;
-        this.item = s.item.clone();
-        this.originalItem = s.originalItem.clone();
-        this.location = s.location.clone();
-        this.plugin = s.plugin;
-        this.unlimited = s.unlimited;
-        this.owner = s.owner;
-        this.price = s.price;
-        this.isLoaded = s.isLoaded;
-        this.isDeleted = s.isDeleted;
-        this.createBackup = s.createBackup;
-        this.extra = s.extra;
-        this.dirty = true;
-        this.inventoryPreview = null;
-        this.currency = s.currency;
-        this.disableDisplay = s.disableDisplay;
-        this.taxAccount = s.taxAccount;
-        this.inventoryWrapper = s.inventoryWrapper;
-        this.inventoryWrapperProvider = s.inventoryWrapperProvider;
-        this.symbolLink = s.symbolLink;
-        this.shopName = s.shopName;
-        this.playerGroup = s.playerGroup;
-        this.benefit = s.benefit;
+//    ContainerShop(@NotNull ContainerShop s) {
+//        Util.ensureThread(false);
+//        this.shopId = s.shopId;
+//        this.shopType = s.shopType;
+//        this.item = s.item.clone();
+//        this.originalItem = s.originalItem.clone();
+//        this.location = s.location.clone();
+//        this.plugin = s.plugin;
+//        this.unlimited = s.unlimited;
+//        this.owner = s.owner;
+//        this.price = s.price;
+//        this.isLoaded = s.isLoaded;
+//        this.isDeleted = s.isDeleted;
+//        this.createBackup = s.createBackup;
+//        this.extra = s.extra;
+//        this.dirty = true;
+//        this.inventoryPreview = null;
+//        this.currency = s.currency;
+//        this.disableDisplay = s.disableDisplay;
+//        this.taxAccount = s.taxAccount;
+//        this.inventoryWrapper = s.inventoryWrapper;
+//        this.inventoryWrapperProvider = s.inventoryWrapperProvider;
+//        this.symbolLink = s.symbolLink;
+//        this.shopName = s.shopName;
+//        this.playerGroup = s.playerGroup;
+//        this.benefit = s.benefit;
+//    }
 
-        initDisplayItem();
-    }
-
-    private void initDisplayItem() {
-        Util.ensureThread(false);
-        try {
-            if (plugin.isDisplayEnabled() && !isDisableDisplay()) {
-                DisplayProvider provider = ServiceInjector.getInjectedService(DisplayProvider.class, null);
-                if (provider != null) {
-                    displayItem = provider.provide(this);
-                } else {
-                    this.displayItem = switch (AbstractDisplayItem.getNowUsing()) {
-                        case REALITEM -> new RealDisplayItem(this);
-                        default -> new VirtualDisplayItem(this);
-                    };
-                }
-            }
-        } catch (Exception e) {
-            plugin.logger().warn("Failed to init display item for shop {}, display item init failed!", this, e);
-        }
-    }
 
     /**
      * Adds a new shop. You need call ShopManager#loadShop if you create from outside of
@@ -251,8 +222,8 @@ public class ContainerShop implements Shop, Reloadable {
         }
         this.symbolLink = symbolLink;
         this.inventoryWrapperProvider = inventoryWrapperProvider;
-        initDisplayItem();
         updateShopData();
+        checkDisplay();
         // ContainerShop constructor is not allowed to write any persistent data to disk
     }
 
@@ -358,46 +329,43 @@ public class ContainerShop implements Shop, Reloadable {
         }
         //Update sign
         this.setSignText(plugin.text().findRelativeLanguages(buyer));
-        if (getAttachedShop() != null) {
-            getAttachedShop().setSignText(plugin.text().findRelativeLanguages(buyer));
-        }
     }
 
     @Override
     public void checkDisplay() {
         Util.ensureThread(false);
-        if (!plugin.isDisplayEnabled() || this.disableDisplay || !this.isLoaded || this.isDeleted()) { // FIXME: Reinit scheduler on reloading config
-            if (this.displayItem != null && this.displayItem.isSpawned()) {
+        boolean displayStatus = plugin.isDisplayEnabled() && !isDisableDisplay() && this.isLoaded() && !this.isDeleted();
+        if (!displayStatus) {
+            if (this.displayItem != null) {
                 this.displayItem.remove();
             }
             return;
         }
-
-        if (plugin.getConfig().getBoolean("shop.display-center", false)) {
-            //FIXME: This may affect the performance
-            updateAttachedShop();
-
-            if (isLeftShop) {
-                if (displayItem != null) {
-                    displayItem.remove();
+        if (this.displayItem == null) {
+            try {
+                DisplayProvider provider = ServiceInjector.getInjectedService(DisplayProvider.class, null);
+                if (provider != null) {
+                    this.displayItem = provider.provide(this);
+                } else {
+                    this.displayItem = switch (AbstractDisplayItem.getNowUsing()) {
+                        case VIRTUALITEM -> {
+                            if (plugin.getVirtualDisplayItemManager() != null) {
+                                yield plugin.getVirtualDisplayItemManager().createVirtualDisplayItem(this);
+                            } else {
+                                yield new RealDisplayItem(this);
+                            }
+                        }
+                        default -> new RealDisplayItem(this);
+                    };
                 }
-                if (getAttachedShop() != null) {
-                    getAttachedShop().refresh();
-                }
+            } catch (Error anyError) {
+                plugin.logger().warn("Failed to init the displayItem for shop {}", this, anyError);
                 return;
             }
         }
-
-        if (this.displayItem == null && plugin.isDisplayEnabled()) {
-            Log.debug("Warning: DisplayItem is null, this shouldn't happened...");
-            StackTraceElement traceElements = Thread.currentThread().getStackTrace()[2];
-            Log.debug("Call from: " + traceElements.getClassName() + "#" + traceElements.getMethodName() + "%" + traceElements.getLineNumber());
-            return;
-        }
-
         if (!this.displayItem.isSpawned()) {
             /* Not spawned yet. */
-            displayItem.spawn();
+            this.displayItem.spawn();
         } else {
             /* If not spawned, we didn't need check these, only check them when we need. */
             if (this.displayItem.checkDisplayNeedRegen()) {
@@ -460,7 +428,6 @@ public class ContainerShop implements Shop, Reloadable {
     public void delete(boolean memoryOnly) {
         Util.ensureThread(false);
         // Get a copy of the attached shop to save it from deletion
-        ContainerShop neighbor = getAttachedShop();
         ShopDeleteEvent shopDeleteEvent = new ShopDeleteEvent(this, memoryOnly);
         if (Util.fireCancellableEvent(shopDeleteEvent)) {
             Log.debug("Shop deletion was canceled because a plugin canceled it.");
@@ -520,23 +487,9 @@ public class ContainerShop implements Shop, Reloadable {
                             }
                         });
             } catch (Exception e) {
-                e.printStackTrace();
-                plugin.logger().warn("Failed to remove the shop mapping from database.");
+                plugin.logger().warn("Failed to remove the shop mapping from database.", e);
             }
         }
-        // Use that copy we saved earlier (which is now deleted) to refresh it's now alone neighbor
-        if (neighbor != null) {
-            neighbor.refresh();
-        }
-    }
-
-    @Override
-    @Nullable
-    public ContainerShop getAttachedShop() {
-        if (this.attachedShopReference == null) {
-            return null;
-        }
-        return this.attachedShopReference.get();
     }
 
     /**
@@ -642,9 +595,7 @@ public class ContainerShop implements Shop, Reloadable {
         }
         this.item = item;
         this.originalItem = item;
-        notifyDisplayItemChange();
         setDirty();
-        refresh();
     }
 
     /**
@@ -922,19 +873,8 @@ public class ContainerShop implements Shop, Reloadable {
         if (plugin.getConfig().getBoolean("shop.force-use-item-original-name") || !this.getItem().hasItemMeta() || !this.getItem().getItemMeta().hasDisplayName()) {
             Component left = plugin.text().of("signs.item-left").forLocale();
             Component right = plugin.text().of("signs.item-right").forLocale();
-            Component itemName = Util.getItemCustomName(getItem());
-            Component itemComponents;
-            if (itemName == null) {
-                // We can't insert translatable components into a sign.
-                if (PaperLib.isPaper()) {
-                    itemComponents = plugin.getPlatform().getTranslation(getItem().getType());
-                } else {
-                    itemComponents = Component.text(CommonUtil.prettifyText(getItem().getType().name()));
-                }
-            } else {
-                itemComponents = itemName;
-            }
-            lines.add(left.append(itemComponents).append(right));
+            Component itemName = Util.getItemStackName(getItem());
+            lines.add(left.append(itemName).append(right));
         } else {
             lines.add(plugin.text().of("signs.item-left").forLocale().append(Util.getItemStackName(getItem()).append(plugin.text().of("signs.item-right").forLocale())));
         }
@@ -1091,31 +1031,6 @@ public class ContainerShop implements Shop, Reloadable {
     }
 
     /**
-     * Returns true if this shop is a double chest, and the other half is selling/buying the same as
-     * this is buying/selling.
-     *
-     * @return true if this shop is a double chest, and the other half is selling/buying the same as
-     * this is buying/selling.
-     */
-    @Override
-    public boolean isDoubleShop() {
-        Util.ensureThread(false);
-        ContainerShop attachedShop = getAttachedShop();
-        if (attachedShop == null) {
-            return false;
-        }
-        if (attachedShop.matches(this.getItem())) {
-            // They're both trading the same item
-            // They're both buying or both selling => Not a double shop,
-            // just two shops.
-            // One is buying, one is selling.
-            return this.getShopType() != attachedShop.getShopType();
-        } else {
-            return false;
-        }
-    }
-
-    /**
      * Check if this shop is free shop
      *
      * @return Free Shop
@@ -1126,29 +1041,10 @@ public class ContainerShop implements Shop, Reloadable {
     }
 
     @Override
-    public boolean isLeftShop() {
-        return isLeftShop;
-    }
-
-    @Override
     public boolean isLoaded() {
         return this.isLoaded;
     }
 
-    /**
-     * Checks to see if it is a real double without updating anything.
-     *
-     * @return If the chest is a real double chest, as in it is a double and it has the same item.
-     */
-    @Override
-    public boolean isRealDouble() {
-        Util.ensureThread(false);
-        ContainerShop attachedShop = getAttachedShop();
-        if (attachedShop == null) {
-            return false;
-        }
-        return attachedShop.matches(this.getItem());
-    }
 
     @Override
     public boolean isSelling() {
@@ -1266,7 +1162,6 @@ public class ContainerShop implements Shop, Reloadable {
             Log.debug("Ignore shop click, because some plugin cancel it.");
             return;
         }
-        refresh();
         setSignText(plugin.getTextManager().findRelativeLanguages(clicker));
     }
 
@@ -1440,41 +1335,6 @@ public class ContainerShop implements Shop, Reloadable {
         return result;
     }
 
-    @Override
-    public void refresh() {
-        Util.ensureThread(false);
-        if (inventoryPreview != null) {
-            inventoryPreview.close();
-            inventoryPreview = null;
-        }
-        if (displayItem != null) {
-            displayItem.remove();
-        }
-
-        if (plugin.isDisplayEnabled() && !isDisableDisplay()) {
-            if (displayItem != null) {
-                displayItem.remove();
-            }
-            // Update double shop status, is left status, and the attachedShop
-            updateAttachedShop();
-            // Update displayItem
-            if (isDisplayItemChanged && !isDisableDisplay()) {
-                initDisplayItem();
-                isDisplayItemChanged = false;
-            }
-            //Update attachedShop DisplayItem
-            ContainerShop attachedShop = getAttachedShop();
-            if (attachedShop != null && attachedShop.isDisplayItemChanged) {
-                attachedShop.refresh();
-            }
-            // Don't make an item for this chest if it's a left shop.
-            if (!isLeftShop && !isDisableDisplay() && displayItem != null) {
-                displayItem.spawn();
-            }
-        }
-        setSignText();
-    }
-
     /**
      * Removes an item from the shop.
      *
@@ -1572,10 +1432,6 @@ public class ContainerShop implements Shop, Reloadable {
                 throw new IllegalStateException("Failed to commit transaction! Economy Error Response:" + transactionTake.getLastError());
             }
             this.setSignText(plugin.getTextManager().findRelativeLanguages(seller));
-            ContainerShop attachedShop = getAttachedShop();
-            if (attachedShop != null) {
-                attachedShop.setSignText(plugin.getTextManager().findRelativeLanguages(seller));
-            }
         }
     }
 
@@ -1661,9 +1517,6 @@ public class ContainerShop implements Shop, Reloadable {
         Log.debug("Globally sign text setting...");
         List<Sign> signs = this.getSigns();
         for (Sign sign : signs) {
-            for (int i = 0; i < lines.size(); i++) {
-                plugin.getPlatform().setLine(sign, i, lines.get(i));
-            }
             if (plugin.getGameVersion().isSignTextDyeSupport()) {
                 DyeColor dyeColor = Util.getDyeColor();
                 if (dyeColor != null) {
@@ -1675,6 +1528,10 @@ public class ContainerShop implements Shop, Reloadable {
                 sign.setGlowingText(isGlowing);
             }
             sign.update(true);
+            for (int i = 0; i < lines.size(); i++) {
+                //plugin.getPlatform().setLine(sign, i, lines.get(i));
+                plugin.getPlatform().setLines(sign, lines);
+            }
             new ShopSignUpdateEvent(this, sign).callEvent();
         }
         if (plugin.getSignHooker() != null) {
@@ -1730,36 +1587,6 @@ public class ContainerShop implements Shop, Reloadable {
                 });
     }
 
-    /**
-     * Updates the attachedShop variable to reflect the currently attached shop, if any.
-     * Also updates the left shop status.
-     */
-    @Override
-    public void updateAttachedShop() {
-        //TODO: Rewrite centering item feature, currently implement is buggy and mess
-        Util.ensureThread(false);
-        Block attachedChest = Util
-                .getSecondHalf(this.getLocation().getBlock());
-        ContainerShop attachedShop = getAttachedShop();
-        Shop preValue = attachedShop;
-        //Prevent chain chunk loading
-        if (attachedChest == null || !Util.isLoaded(attachedChest.getLocation())) {
-            attachedShop = null;
-        } else {
-            attachedShop = (ContainerShop) plugin.getShopManager().getShop(attachedChest.getLocation());
-        }
-
-        if (attachedShop != null && attachedShop.matches(this.getItem())) {
-            updateLeftShop();
-        } else {
-            isLeftShop = false;
-        }
-
-        if (!Objects.equals(attachedShop, preValue)) {
-            notifyDisplayItemChange();
-        }
-    }
-
     @Override
     public @NotNull Benefit getShopBenefit() {
         return this.benefit;
@@ -1769,48 +1596,6 @@ public class ContainerShop implements Shop, Reloadable {
     public void setShopBenefit(@NotNull Benefit benefit) {
         this.benefit = benefit;
         setDirty();
-    }
-
-    /**
-     * This function calculates which block of a double chest is the left block,
-     * relative to the direction the chest is facing. Left shops don't spawn items since
-     * they merge items with the right shop.
-     * It also updates the isLeftShop status of this class to reflect the changes.
-     */
-    private void updateLeftShop() {
-        //TODO: Rewrite centering item feature, currently implement is buggy and mess
-        ContainerShop attachedShop = getAttachedShop();
-        if (attachedShop == null) {
-            return;
-        }
-        boolean previousValue = isLeftShop;
-
-        switch (((Chest) getLocation().getBlock().getBlockData()).getFacing()) {
-            case WEST ->
-                // left block has a smaller z value
-                    isLeftShop = getLocation().getZ() < attachedShop.getLocation().getZ();
-            case EAST ->
-                // left block has a greater z value
-                    isLeftShop = getLocation().getZ() > attachedShop.getLocation().getZ();
-            case NORTH ->
-                // left block has greater x value
-                    isLeftShop = getLocation().getX() > attachedShop.getLocation().getX();
-            case SOUTH ->
-                // left block has a smaller x value
-                    isLeftShop = getLocation().getX() < attachedShop.getLocation().getX();
-            default -> isLeftShop = false;
-        }
-        if (isLeftShop != previousValue) {
-            notifyDisplayItemChange();
-        }
-    }
-
-    private void notifyDisplayItemChange() {
-        isDisplayItemChanged = true;
-        ContainerShop attachedShop = getAttachedShop();
-        if (attachedShop != null && !attachedShop.isDisplayItemChanged) {
-            attachedShop.notifyDisplayItemChange();
-        }
     }
 
     /**
@@ -1878,19 +1663,6 @@ public class ContainerShop implements Shop, Reloadable {
      */
     public @NotNull Material getMaterial() {
         return this.item.getType();
-    }
-
-    /**
-     * Different with isDoubleShop, this method only check the shop is created on the double chest.
-     *
-     * @return true if create on double chest.
-     */
-    public boolean isDoubleChestShop() {
-        Util.ensureThread(false);
-        if (Util.isDoubleChest(this.getLocation().getBlock().getBlockData())) {
-            return getAttachedShop() != null;
-        }
-        return false;
     }
 
     private @NotNull InventoryWrapper locateInventory(@Nullable String symbolLink) {

@@ -2,13 +2,14 @@ package com.ghostchu.quickshop.command.subcommand;
 
 import com.ghostchu.quickshop.QuickShop;
 import com.ghostchu.quickshop.api.command.CommandHandler;
+import com.ghostchu.quickshop.api.command.CommandParser;
 import com.ghostchu.quickshop.api.shop.PriceLimiter;
 import com.ghostchu.quickshop.api.shop.PriceLimiterCheckResult;
 import com.ghostchu.quickshop.api.shop.Shop;
 import com.ghostchu.quickshop.api.shop.permission.BuiltInShopPermission;
 import com.ghostchu.quickshop.economy.SimpleEconomyTransaction;
-import com.ghostchu.quickshop.shop.ContainerShop;
 import com.ghostchu.quickshop.util.MsgUtil;
+import com.ghostchu.quickshop.util.Util;
 import com.ghostchu.quickshop.util.logger.Log;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -28,8 +29,8 @@ public class SubCommand_Price implements CommandHandler<Player> {
     }
 
     @Override
-    public void onCommand(@NotNull Player sender, @NotNull String commandLabel, @NotNull String[] cmdArg) {
-        if (cmdArg.length < 1) {
+    public void onCommand(@NotNull Player sender, @NotNull String commandLabel, @NotNull CommandParser parser) {
+        if (parser.getArgs().size() < 1) {
             plugin.text().of(sender, "no-price-given").send();
             return;
         }
@@ -37,16 +38,16 @@ public class SubCommand_Price implements CommandHandler<Player> {
         final double price;
 
         try {
-            price = Double.parseDouble(cmdArg[0]);
+            price = Double.parseDouble(parser.getArgs().get(0));
         } catch (NumberFormatException ex) {
             // No number input
             Log.debug(ex.getMessage());
-            plugin.text().of(sender, "not-a-number", cmdArg[0]).send();
+            plugin.text().of(sender, "not-a-number", parser.getArgs().get(0)).send();
             return;
         }
         // No number input
         if (Double.isInfinite(price) || Double.isNaN(price)) {
-            plugin.text().of(sender, "not-a-number", cmdArg[0]).send();
+            plugin.text().of(sender, "not-a-number", parser.getArgs().get(0)).send();
             return;
         }
 
@@ -80,7 +81,7 @@ public class SubCommand_Price implements CommandHandler<Player> {
 
         switch (checkResult.getStatus()) {
             case PRICE_RESTRICTED -> {
-                plugin.text().of(sender, "restricted-prices", MsgUtil.getTranslateText(shop.getItem()),
+                plugin.text().of(sender, "restricted-prices", Util.getItemStackName(shop.getItem()),
                         Component.text(checkResult.getMin()),
                         Component.text(checkResult.getMax())).send();
                 return;
@@ -108,7 +109,7 @@ public class SubCommand_Price implements CommandHandler<Player> {
                     .currency(plugin.getCurrency())
                     .build();
             if (!transaction.checkBalance()) {
-                plugin.text().of(sender, "you-cant-afford-to-change-price", LegacyComponentSerializer.legacySection().deserialize(plugin.getEconomy().format(fee, shop.getLocation().getWorld(), shop.getCurrency()))).send();
+                plugin.text().of(sender, "you-cant-afford-to-change-price", plugin.getShopManager().format(fee, shop)).send();
                 return;
             }
             if (!transaction.failSafeCommit()) {
@@ -117,44 +118,19 @@ public class SubCommand_Price implements CommandHandler<Player> {
             }
         }
         plugin.text().of(sender,
-                "fee-charged-for-price-change", LegacyComponentSerializer.legacySection().deserialize(plugin.getEconomy().format(fee, shop.getLocation().getWorld(), plugin.getCurrency()))).send();
+                "fee-charged-for-price-change", plugin.getShopManager().format(fee, shop)).send();
         // Update the shop
         shop.setPrice(price);
         shop.setSignText(plugin.text().findRelativeLanguages(sender));
         plugin.text().of(sender,
-                "price-is-now", LegacyComponentSerializer.legacySection().deserialize(plugin.getEconomy().format(shop.getPrice(), Objects.requireNonNull(shop.getLocation().getWorld()), shop.getCurrency()))).send();
-        // Chest shops can be double shops.
-        if (!(shop instanceof final ContainerShop cs)) {
-            return;
-        }
-
-        if (!cs.isDoubleShop()) {
-            return;
-        }
-
-        final Shop nextTo = cs.getAttachedShop();
-
-        if (nextTo == null) {
-            // TODO: 24/11/2019 Send message about that issue.
-            return;
-        }
-
-        if (cs.isSelling()) {
-            if (cs.getPrice() < nextTo.getPrice()) {
-                plugin.text().of(sender, "buying-more-than-selling").send();
-            }
-        }
-        // Buying
-        else if (cs.getPrice() > nextTo.getPrice()) {
-            plugin.text().of(sender, "buying-more-than-selling").send();
-        }
+                "price-is-now", plugin.getShopManager().format(shop.getPrice(),shop)).send();
     }
 
     @NotNull
     @Override
     public List<String> onTabComplete(
-            @NotNull Player sender, @NotNull String commandLabel, @NotNull String[] cmdArg) {
-        return cmdArg.length == 1 ? Collections.singletonList(LegacyComponentSerializer.legacySection().serialize(plugin.text().of(sender, "tabcomplete.price").forLocale())) : Collections.emptyList();
+            @NotNull Player sender, @NotNull String commandLabel, @NotNull CommandParser parser) {
+        return parser.getArgs().size() == 1 ? Collections.singletonList(LegacyComponentSerializer.legacySection().serialize(plugin.text().of(sender, "tabcomplete.price").forLocale())) : Collections.emptyList();
     }
 
 }

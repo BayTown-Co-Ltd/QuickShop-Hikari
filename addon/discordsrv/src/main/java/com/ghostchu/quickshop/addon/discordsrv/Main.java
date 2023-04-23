@@ -1,7 +1,7 @@
 package com.ghostchu.quickshop.addon.discordsrv;
 
 import com.ghostchu.quickshop.QuickShop;
-import com.ghostchu.quickshop.addon.discordsrv.bean.NotifactionFeature;
+import com.ghostchu.quickshop.addon.discordsrv.bean.NotificationFeature;
 import com.ghostchu.quickshop.addon.discordsrv.command.SubCommand_Discord;
 import com.ghostchu.quickshop.addon.discordsrv.database.DiscordDatabaseHelper;
 import com.ghostchu.quickshop.addon.discordsrv.listener.QuickShopEventListener;
@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Set;
+import java.util.logging.Level;
 
 public final class Main extends JavaPlugin implements Listener, SlashCommandProvider, Reloadable {
     private QuickShop plugin;
@@ -66,8 +67,7 @@ public final class Main extends JavaPlugin implements Listener, SlashCommandProv
         try {
             this.databaseHelper = new DiscordDatabaseHelper(this, plugin.getSqlManager(), plugin.getDbPrefix());
         } catch (SQLException e) {
-            e.printStackTrace();
-            getLogger().severe("Failed to connect to database, please check your database settings.");
+            getLogger().log(Level.SEVERE, "Failed to connect to database, please check your database settings.", e);
             Bukkit.getPluginManager().disablePlugin(this);
             return;
         }
@@ -84,7 +84,12 @@ public final class Main extends JavaPlugin implements Listener, SlashCommandProv
         return jdaWrapper;
     }
 
-    public boolean isServerNotifactionFeatureEnabled(@NotNull NotifactionFeature feature) {
+    @Deprecated
+    public boolean isServerNotifactionFeatureEnabled(@NotNull NotificationFeature feature) {
+        return isServerNotificationFeatureEnabled(feature);
+    }
+
+    public boolean isServerNotificationFeatureEnabled(@NotNull NotificationFeature feature) {
         return getConfig().getBoolean("features." + feature.getConfigNode(), true);
     }
 

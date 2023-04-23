@@ -166,6 +166,9 @@ file-test: Dies ist eine Text Testdatei. Wir verwenden sie um zu testen ob die m
 unknown-player: <red>Dieser Spieler existiert nicht. Bitte überprüfe, ob der Name korrekt geschrieben wurde.
 player-offline: "<red>Der ausgewählte Spieler ist zurzeit Offline."
 player-profile-format: "<aqua>{0}</aqua><gold>(<yellow>{1}</yellow>)</gold>"
+shop-type:
+  selling: "VERKAUFEN"
+  buying: "KAUFEN"
 language:
   qa-issues: '<yellow>Qualitätssicherungs-Probleme: <aqua>{0}%'
   code: '<yellow>Code: <gold>{0}'
@@ -239,7 +242,10 @@ no-double-chests: <red>Du kannst keinen Doppeltruhen-Shop erstellen.
 price-too-cheap: <red>Preis muss höher als <yellow>${0}<red> sein
 shop-not-exist: <red>Dieser Shop existiert nicht.
 bad-command-usage: <red>Schlechte Befehlsargumente!
-clean-warning: <yellow>Dieser Befehl wird <red>alle <yellow>Shops entfernen, welche korrupt sind, sich in einer nicht erlaubten Welt befinden, nicht erlaubte Items verkaufen/kaufen oder <red><bold>IN NICHT GELADENEN WELTEN EXISTIEREN<yellow>. Stelle sicher, dass du ein komplettes Backup deiner Shopdaten erstellst und verwende <aqua>/qs cleanghost confirm <yellow> um fortzufahren.
+cleanghost-warning: <yellow>Dieser Befehlt entfernt <red>alle</red> Shops welche beschädigt sind, in nicht erlaubten Welten erstellt wurden, nicht erlaubte Items (ver)kaufen oder <red><bold>IN UNGELADENEN WELTEN EXISTIEREN</bold></red>. Erstell ein komplettes Backup deiner Shopdaten und fahre dann mit <aqua>/qs cleanghost confirm</aqua> fort.
+cleanghost-starting: <green>Beginne mit der suche nach Geistershops (Fehlende Containerblöcke). Alle nicht-existierenden Shops werden entfernt...
+cleanghost-deleting: <yellow>Ein beschädigter Shop <aqua>{0}</aqua> wurde gefunden aufgrund von {1}. Zum löschen markiert...
+cleanghost-deleted: <green><yellow>{0}</yellow> Shops wurden insgesammt gelöscht.
 shop-purchase-cancelled: <red>Shop-Kauf abgebrochen.
 bypassing-lock: <red>Umgehe eine QuickShop Sicherung!
 bungee-cross-server-msg: 'QuickShop CSM: <green>{0}'
@@ -429,6 +435,7 @@ command:
     lookup: <yellow>Tabelle der nachschlagbaren Gegenstände verwalten
     database: <yellow>Zeige und verwalte die QuickShop Datenbank
     benefit: <yellow>Einstellungen zum aufteilen von Vorteilen zwischen Schobeigentümer und anderen Spielern
+    tag: <yellow>Shop-Tags hinzufügen, entfernen oder abfragen
   bulk-size-not-set: '<red>Verwendung: /qs size <Anzahl>'
   no-type-given: '<red>Verwendung: /qs find <item>'
   feature-not-enabled: Dieses Feature ist nicht in der Config Datei aktiviert.
@@ -534,6 +541,7 @@ internal-error: "<red>Ein interner Fehler ist aufgetreten. Bitte kontaktiere den
 argument-cannot-be: "<red>Das Argument <aqua>{0}</aqua> kann nicht <yellow>{1}</yellow> sein."
 argument-must-between: "<red>Der Wert von <aqua>{0}</aqua> muss zwischen <yellow>{1}</yellow> und <yellow>{2}</yellow> sein"
 invalid-percentage: "<red>Prozentsatz ungültig, du musst '%' nach der Nummer hinzufügen."
+display-fallback: "<red>Aufgrund eines internen Fehlers wird eine Fallback-Nachricht angezeigt.\nDer Wert dieses Items wird eventuell nicht lokalisiert oder richtig verarbeitet.\nBitte kontaktiere den Server Administrator."
 not-a-valid-time: |
   <red>Der Text <yellow>{0}</yellow> ist kein gültiger Zeitstempel. Bitte gib eine <aqua>Zulu-Zeit (ISO 8601)</aqua> oder <aqua>Unix-Epoch-Zeit in Sekunden</aqua> ein.
   <gold>Gültiges Zeitstempel Beispiel: (Für Samstag, 17. Dez. 2022 10:31:37 GMT):</gold>
@@ -628,6 +636,21 @@ benefit-added: "<green>Spieler <aqua>{0}</aqua> wurde zu Shop-Vorteilen hinzugef
 benefit-updated: "<green>Spieler <aqua>{0}</aqua>'s Vorteile wurden aktualisiert!"
 benefit-query: "<green>Dieser Shop hat <yellow>{0}</yellow> Spieler in der Vorteilsliste!"
 benefit-query-list: "<yellow> - </yellow><white>Spieler <gold>{0}</gold>. Vorteil: <gold>{1}%</gold>/white>"
+tag-added: "<green><aqua>#{0}</aqua> erfolgreich als Tag zu diesem Shop hinzugefügt!"
+tag-add-duplicate: "<red>Der Tag <aqua>#{0}</aqua> existiert bereits für diesen Shop!"
+tag-removed: "<green>Tag <aqua>#{0}</aqua> efolgreich von diesem Shop entfernt!"
+tag-remove-not-exists: "<red>Der Tag <aqua>#{0}</aqua> existiert für diesen Shop nicht!"
+tag-cleared: "<green>Alle Tags erfolgreich von diesem Shop entfernt!"
+tag-shops-cleared: "<green><aqua>#{0}</aqua> wurde erfolgreich von all deinen getaggten Shops entfernt!"
+tag-query: "<green>Dieser Shop hat <yellow>{0}</yellow> Tags:"
+tag-query-listing: "<yellow> - <aqua>#{0}</aqua>"
+tag-query-no-tag: "<red>Dieser Shop hat keine Tags."
+tag-query-shops: "<green>Dieser Tag hat <yellow>{0}</yellow> Shops:"
+tag-query-shops-listing: "<yellow> - <aqua>{0}</aqua>"
+batch-operations-based-on-tags-no-failure: "<green><yellow>{0}</yellow> Shops erfolgreich verarbeitet."
+batch-operations-based-on-tags-have-failure: "<yellow>{0} Shops wurden erfolgreich in der Massenverarbeitung abgeschlossen, aber <red>{1}</red> konnten nicht abgeschlossen werden."
+batch-operations-based-on-tags-have-failure-with-reason: "<yellow>{0} Shops wurden erfolgreich in der Massenverarbeitung abgeschlossen, aber <red>{1}</red> konnten nicht abgeschlossen werden.\nGrund: <gold>{2}</gold>"
+batch-operations-based-on-tags-have-failure-error-messages-may-appears-above: "<gray>Die Fehlermeldungen wurden dir vor dieser Nachricht im Chat gesendet."
 addon:
   towny:
     commands:
@@ -1320,6 +1343,31 @@ addon:
     success-remove: "<green>All Einschränkungen in diesem Shop wurden erfolgreich entfernt"
     success-setup: "<green>Einschränkungseinstellungen für diesen Shop wurden erfolgreich gespeichert"
     trade-limit-reached-cancel-reason: "<red>Einschränkung dieses Shops erreicht"
+  dynmap:
+    markerset-title: "QuickShop-Hikari Shops"
+    marker-name: "{0} @ {2} @ {3} für x{4} @ {5}"
+    marker-description: |
+      Name: {0}
+      Besitzer: {1}
+      Item: {2}
+      Preis: {3} für x{4} Item(s)
+      Typ: {5}
+      Unbegrenzt: {6}
+      Ort: {7}
+  bluemap:
+    markerset-title: "QuickShop-Hikari Shops"
+    marker-name: "{0} @ {2} @ {3} für x{4} @ {5}"
+    marker-description: |
+      Name: {0}
+      Besitzer: {1}
+      Item: {2}
+      Preis: {3} für x{4} Item(s)
+      Typ: {5}
+      Unbegrenzt: {6}
+      Ort: {7}
+  chestprotect:
+    protection-exists: "<red>Diese Region wird durch ChestProtect geschützt und du hast keine Berechtigung einen Shop hier zu erstellen."
+    shops-exsts: "<red>Die Region welche du schützen möchtest enthält Shops anderer Spieler, und du hast nicht die Berechtigung auf diese zugreifen zu können."
 suite:
   dynmap:
     title: "{0} - {1} - {2}"

@@ -2,12 +2,12 @@ package com.ghostchu.quickshop.command.subcommand;
 
 import com.ghostchu.quickshop.QuickShop;
 import com.ghostchu.quickshop.api.command.CommandHandler;
+import com.ghostchu.quickshop.api.command.CommandParser;
 import com.ghostchu.quickshop.api.shop.PriceLimiter;
 import com.ghostchu.quickshop.api.shop.PriceLimiterCheckResult;
 import com.ghostchu.quickshop.api.shop.PriceLimiterStatus;
 import com.ghostchu.quickshop.api.shop.Shop;
 import com.ghostchu.quickshop.api.shop.permission.BuiltInShopPermission;
-import com.ghostchu.quickshop.util.MsgUtil;
 import com.ghostchu.quickshop.util.Util;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
@@ -23,7 +23,7 @@ public class SubCommand_Item implements CommandHandler<Player> {
     }
 
     @Override
-    public void onCommand(@NotNull Player sender, @NotNull String commandLabel, @NotNull String[] cmdArg) {
+    public void onCommand(@NotNull Player sender, @NotNull String commandLabel, @NotNull CommandParser parser) {
         // Loop through every block they're looking at upto 10 blocks away
         final Shop shop = getLookingShop(sender);
         if (shop != null) {
@@ -47,7 +47,7 @@ public class SubCommand_Item implements CommandHandler<Player> {
             PriceLimiter limiter = plugin.getShopManager().getPriceLimiter();
             PriceLimiterCheckResult checkResult = limiter.check(sender, itemStack, shop.getCurrency(), shop.getPrice());
             if (checkResult.getStatus() != PriceLimiterStatus.PASS) {
-                plugin.text().of(sender, "restricted-prices", MsgUtil.getTranslateText(shop.getItem()),
+                plugin.text().of(sender, "restricted-prices", Util.getItemStackName(shop.getItem()),
                         Component.text(checkResult.getMin()),
                         Component.text(checkResult.getMax())).send();
                 return;

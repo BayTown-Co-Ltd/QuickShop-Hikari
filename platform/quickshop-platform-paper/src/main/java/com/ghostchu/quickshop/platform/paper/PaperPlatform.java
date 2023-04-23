@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 
 import java.util.*;
 
+@SuppressWarnings("removal")
 public class PaperPlatform implements Platform {
 
     private Map<String, String> translationMapping;
@@ -95,20 +96,17 @@ public class PaperPlatform implements Platform {
     }
 
     @Override
+    public @NotNull Component getTranslation(@NotNull ItemStack itemStack) {
+        return Component.translatable(getTranslationKey(itemStack));
+    }
+
+    @Override
     public @NotNull String getTranslationKey(@NotNull Material material) {
         String key;
         try {
-            return material.translationKey();
-        } catch (Exception error) {
-            try {
-                key = material.getTranslationKey();
-            } catch (Exception error2) {
-                if (!material.isBlock()) {
-                    key = "item." + material.getKey().getNamespace() + "." + material.getKey().getKey();
-                } else {
-                    key = "block." + material.getKey().getNamespace() + "." + material.getKey().getKey();
-                }
-            }
+            key = material.translationKey();
+        } catch (Throwable error) {
+            key = material.getTranslationKey();
         }
         return postProcessingTranslationKey(key);
     }
@@ -118,34 +116,31 @@ public class PaperPlatform implements Platform {
         String key;
         try {
             key = type.translationKey();
-        } catch (Exception error) {
-            try {
-                key = type.getTranslationKey();
-            } catch (Exception error2) {
-                key = "entity." + type.getKey().getNamespace() + "." + type.getKey().getKey();
-            }
+        } catch (Throwable error) {
+            key = type.getTranslationKey();
         }
         return postProcessingTranslationKey(key);
     }
 
     @Override
     public @NotNull String getTranslationKey(@NotNull PotionEffectType potionEffectType) {
-        String key;
-        try {
-            key = potionEffectType.translationKey();
-        } catch (Exception error) {
-            key = "effect." + potionEffectType.getKey().getNamespace() + "." + potionEffectType.getKey().getKey();
-        }
+        String key = potionEffectType.translationKey();
         return postProcessingTranslationKey(key);
     }
 
     @Override
     public @NotNull String getTranslationKey(@NotNull Enchantment enchantment) {
+        String key = enchantment.translationKey();
+        return postProcessingTranslationKey(key);
+    }
+
+    @Override
+    public @NotNull String getTranslationKey(@NotNull ItemStack stack) {
         String key;
         try {
-            key = enchantment.translationKey();
-        } catch (Exception error) {
-            key = enchantment.getKey().getNamespace() + "." + enchantment.getKey().getKey();
+            key = stack.getTranslationKey();
+        } catch (Throwable error) {
+            key = stack.translationKey();
         }
         return postProcessingTranslationKey(key);
     }
@@ -173,11 +168,6 @@ public class PaperPlatform implements Platform {
     }
 
     @Override
-    public void setDisplayName(@NotNull ItemMeta meta, @Nullable Component component) {
-        meta.displayName(component);
-    }
-
-    @Override
     public void setDisplayName(@NotNull ItemStack stack, @Nullable Component component) {
         ItemMeta meta = stack.getItemMeta();
         meta.displayName(component);
@@ -192,6 +182,15 @@ public class PaperPlatform implements Platform {
     @Override
     public void setLine(@NotNull Sign sign, int line, @NotNull Component component) {
         sign.line(line, component);
+        sign.update(true, false);
+    }
+
+    @Override
+    public void setLines(@NotNull Sign sign, @NotNull List<Component> component) {
+        for (int i = 0; i < Math.min(component.size(), 4); i++) {
+            sign.line(i, component.get(i));
+        }
+        sign.update(true, false);
     }
 
     @Override
@@ -199,10 +198,6 @@ public class PaperPlatform implements Platform {
         stack.lore(new ArrayList<>(components));
     }
 
-    @Override
-    public void setLore(@NotNull ItemMeta meta, @NotNull Collection<Component> components) {
-        meta.lore(new ArrayList<>(components));
-    }
 
     @Override
     public void updateTranslationMappingSection(@NotNull Map<String, String> mapping) {

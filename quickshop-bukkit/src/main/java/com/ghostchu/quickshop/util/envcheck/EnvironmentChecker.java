@@ -6,26 +6,16 @@ import com.ghostchu.quickshop.api.GameVersion;
 import com.ghostchu.quickshop.api.shop.display.DisplayType;
 import com.ghostchu.quickshop.common.util.CommonUtil;
 import com.ghostchu.quickshop.shop.display.AbstractDisplayItem;
-import com.ghostchu.quickshop.shop.display.VirtualDisplayItem;
-import com.ghostchu.quickshop.util.MsgUtil;
 import com.ghostchu.quickshop.util.PackageUtil;
 import com.ghostchu.quickshop.util.ReflectFactory;
 import com.ghostchu.quickshop.util.Util;
 import com.ghostchu.quickshop.util.logger.Log;
 import io.papermc.lib.PaperLib;
-import kong.unirest.HttpResponse;
-import kong.unirest.Unirest;
 import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public final class EnvironmentChecker {
     private static final String CHECK_PASSED_RETURNS = "Check passed";
@@ -184,32 +174,32 @@ public final class EnvironmentChecker {
         return new ResultContainer(CheckResult.PASSED, CHECK_PASSED_RETURNS);
     }
 
-    @EnvCheckEntry(name = "Legal Compliance Check", priority = 12, stage = EnvCheckEntry.Stage.ON_ENABLE)
-    public ResultContainer neteaseRegionTest() {
-        HttpResponse<String> resp = Unirest.get("https://cloudflare.com/cdn-cgi/trace")
-                .connectTimeout(1000 * 10)
-                .socketTimeout(1000 * 10)
-                .asString();
-        if (!resp.isSuccess()) {
-            return new ResultContainer(CheckResult.PASSED, "Failed to check NetEase region.");
-        }
-        String cloudflareResponse = resp.getBody();
-        String[] exploded = cloudflareResponse.split("\n");
-        for (String s : exploded) {
-            if (s.startsWith("loc=")) {
-                String[] kv = s.split("=");
-                if (kv.length != 2) {
-                    continue;
-                }
-                String key = kv[0];
-                String value = kv[1];
-                if (key.equalsIgnoreCase("loc") && value.equalsIgnoreCase("CN")) {
-                    return new ResultContainer(CheckResult.DISABLE_PLUGIN, "自 Hikari-4.1.0.3 开始，由于潜在的法律法规风险，我们暂时停止向处于中国大陆的服务器提供服务，有关更多信息，请参考：https://ghost-chu.github.io/QuickShop-Hikari-Documents/docs/about/netease");
-                }
-            }
-        }
-        return new ResultContainer(CheckResult.PASSED, CHECK_PASSED_RETURNS);
-    }
+//    @EnvCheckEntry(name = "Legal Compliance Check", priority = 12, stage = EnvCheckEntry.Stage.ON_ENABLE)
+//    public ResultContainer neteaseRegionTest() {
+//        HttpResponse<String> resp = Unirest.get("https://cloudflare.com/cdn-cgi/trace")
+//                .connectTimeout(1000 * 10)
+//                .socketTimeout(1000 * 10)
+//                .asString();
+//        if (!resp.isSuccess()) {
+//            return new ResultContainer(CheckResult.PASSED, "Failed to check NetEase region.");
+//        }
+//        String cloudflareResponse = resp.getBody();
+//        String[] exploded = cloudflareResponse.split("\n");
+//        for (String s : exploded) {
+//            if (s.startsWith("loc=")) {
+//                String[] kv = s.split("=");
+//                if (kv.length != 2) {
+//                    continue;
+//                }
+//                String key = kv[0];
+//                String value = kv[1];
+//                if (key.equalsIgnoreCase("loc") && value.equalsIgnoreCase("CN")) {
+//                    return new ResultContainer(CheckResult.DISABLE_PLUGIN, "自 Hikari-4.1.0.3 开始，由于潜在的法律法规风险，我们暂时停止向处于中国大陆的服务器提供服务，有关更多信息，请参考：https://ghost-chu.github.io/QuickShop-Hikari-Documents/docs/about/netease");
+//                }
+//            }
+//        }
+//        return new ResultContainer(CheckResult.PASSED, CHECK_PASSED_RETURNS);
+//    }
 
     public ResultReport run(EnvCheckEntry.Stage stage) {
         sortTests();
@@ -301,7 +291,7 @@ public final class EnvironmentChecker {
         return success;
     }
 
-    @EnvCheckEntry(name = "Virtual DisplayItem Support Test", priority = 7)
+    @EnvCheckEntry(name = "Virtual DisplayItem Support Test", priority = 7, stage = EnvCheckEntry.Stage.AFTER_ON_ENABLE)
     public ResultContainer virtualDisplaySupportTest() {
         String nmsVersion = ReflectFactory.getNMSVersion();
         GameVersion gameVersion = GameVersion.get(nmsVersion);
@@ -310,18 +300,29 @@ public final class EnvironmentChecker {
             throwable = new IllegalStateException("Version not supports Virtual DisplayItem.");
         } else {
             if (Bukkit.getPluginManager().getPlugin("ProtocolLib") != null) {
-                throwable = VirtualDisplayItem.PacketFactory.testFakeItem();
+                if (plugin.getVirtualDisplayItemManager() != null) {
+                    throwable = plugin.getVirtualDisplayItemManager().getPacketFactory().testFakeItem();
+                } else {
+                    throwable = new IllegalStateException("VirtualDisplayItemManager is null.");
+                }
             } else {
-                AbstractDisplayItem.setNotSupportVirtualItem(true);
-                return new ResultContainer(CheckResult.WARNING, "ProtocolLib is not installed, virtual DisplayItem seems will not work on your server.");
+                throwable = new IllegalStateException("ProtocolLib is not installed, virtual DisplayItem seems will not work on your server.");
             }
         }
         if (throwable != null) {
-            Log.debug(throwable.getMessage());
-            MsgUtil.debugStackTrace(throwable.getStackTrace());
-            AbstractDisplayItem.setNotSupportVirtualItem(true);
+            if (plugin.getVirtualDisplayItemManager() != null) {
+                plugin.getVirtualDisplayItemManager().setTestPassed(false);
+            }
             //do not throw
             plugin.logger().error("Virtual DisplayItem Support Test: Failed to initialize VirtualDisplayItem", throwable);
+
+            //Falling back to RealDisplayItem when VirtualDisplayItem is unsupported
+            if (AbstractDisplayItem.getNowUsing() == DisplayType.VIRTUALITEM) {
+                plugin.getConfig().set("shop.display-type", 0);
+                plugin.getJavaPlugin().saveConfig();
+                plugin.logger().warn("Falling back to RealDisplayItem because {} type is unsupported.", DisplayType.VIRTUALITEM);
+
+            }
             return new ResultContainer(CheckResult.WARNING, "Virtual DisplayItem seems to not work on this Minecraft server, Make sure QuickShop, ProtocolLib and server builds are up to date.");
         } else {
             return new ResultContainer(CheckResult.PASSED, "Passed checks");
